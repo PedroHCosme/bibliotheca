@@ -57,8 +57,9 @@ def build_bibliotheca(corpus: str) -> None:
     cmd = [biblio_exe(), "--out", str(arms.bibliotheca(corpus)), "add",
            str(arms.sources(corpus)), "--no-summary", "--max-ocr-pages", "0"]
     print(">", " ".join(cmd), flush=True)
+    # no tty: biblio never prompts; check: a crashed ingest must not be reported as "ready"
     subprocess.run(cmd, env=dict(os.environ, BIBLIO_REGISTRY=str(reg)),
-                   stdin=subprocess.DEVNULL)  # no tty: biblio never prompts
+                   stdin=subprocess.DEVNULL, check=True)
 
 
 def build_slices(corpus: str) -> None:
