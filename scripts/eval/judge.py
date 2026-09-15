@@ -19,7 +19,10 @@ PROMPT = """You grade an answer against a gold answer. Reply only with the JSON 
 
 correct = 1 if the answer states every key fact of the gold answer and contradicts none; otherwise 0.
 cited = 1 if the answer cites at least one gold document — by its file name, its document id, or a path
-whose folder is the document id — with a page or section consistent with the gold anchor; otherwise 0.
+whose folder is the document id — and locates the answer within it: a section, chapter, example or
+heading name that contains the gold anchor, or a page number. Gold pages are PDF page indexes; books
+print their own numbering, often offset by up to ~20, so a page within 20 of the gold page counts.
+A document named without any location inside it gets 0.
 
 Question: {question}
 Gold answer (key facts): {answer}
