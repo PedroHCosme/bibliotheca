@@ -76,6 +76,9 @@ def main(argv=None) -> None:
 
     for i, (q, arm, rep) in enumerate(todo, 1):
         rec = run_one(q, arm, rep, claude)
+        if rec["is_error"] and "error" not in rec:
+            # Claude itself failed (spend limit, 429, network): not the arm's fault. Stop, record nothing.
+            sys.exit(f"API error on {rec['key']}, stopping; re-run to resume: {rec['answer'][:200]}")
         with out.open("a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
         print(f"[{i}/{len(todo)}] {rec['key']} tokens={rec['tokens']} "
