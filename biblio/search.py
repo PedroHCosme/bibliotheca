@@ -51,6 +51,7 @@ def search(query: str, output=None, top: int = 5, doc: str | None = None,
     lists: list[list] = []
     rows: dict = {}
     frecency_scores: dict[tuple, float] = {}
+    connections: dict[Path, object] = {}
     for bibliotheca in all_libs(output):
         if not (bibliotheca / db.DB_FILE).exists():
             if output is None:
@@ -61,73 +62,65 @@ def search(query: str, output=None, top: int = 5, doc: str | None = None,
         if output is not None and str(bibliotheca.resolve()) not in known_bibliothecas():
             register(bibliotheca)
         con = db.connect(bibliotheca)
-        try:
-            rankings = [db.search_vector(con, vector, candidates, doc),
-                        db.search_fts(con, query, candidates, doc)]
+        connections[bibliotheca] = con
+        rankings = [db.search_vector(con, vector, candidates, doc),
+                    db.search_fts(con, query, candidates, doc)]
 
-            if not no_frecency:
-                cand_ids = {i for r in rankings for i in r}
-                for cid, sc in db.ranked_by_frecency(con, vector, cand_ids):
-                    frecency_scores[(bibliotheca, cid)] = sc
+        if not no_frecency:
+            cand_ids = {i for r in rankings for i in r}
+            for cid, sc in db.ranked_by_frecency(con, vector, cand_ids):
+                frecency_scores[(bibliotheca, cid)] = sc
 
-            for chunk_id, row in db.details(
-                    con, list({i for r in rankings for i in r})).items():
-                rows[(bibliotheca, chunk_id)] = row
-            lists += [[(bibliotheca, i) for i in r] for r in rankings]
-        finally:
+        for chunk_id, row in db.details(
+                con, list({i for r in rankings for i in r})).items():
+            rows[(bibliotheca, chunk_id)] = row
+        lists += [[(bibliotheca, i) for i in r] for r in rankings]
+
+    try:
+        scored = rrf(lists)
+
+        for key in list(scored):
+            if key in frecency_scores:
+                scored[key] += min(frecency_scores[key] / db.BONUS_SCALE, db.MAX_BONUS)
+
+        q_tokens = _tokens(query)
+        if q_tokens:
+            for key, row in rows.items():
+                match = q_tokens & _tokens(row["section"] or "")
+                if match:
+                    scored[key] = scored.get(key, 0.0) + \
+                        BONUS_HEADING * len(match) / len(q_tokens)
+
+        results: list[dict] = []
+        result_keys: list[tuple[Path, int]] = []
+        seen: set[str] = set()
+        for (bibliotheca, chunk_id), score in sorted(scored.items(),
+                                                     key=lambda p: -p[1]):
+            row = rows.get((bibliotheca, chunk_id))
+            if row is None:
+                continue
+            filepath = str((bibliotheca / row["doc"] / row["file"]).resolve())
+            if filepath in seen:
+                continue
+            seen.add(filepath)
+            start, end = _interval(filepath, row, context)
+            results.append({
+                "path": filepath, "doc": row["doc"], "file": row["file"],
+                "section": row["section"], "line_start": start,
+                "line_end": end, "score": round(score, 4),
+            })
+            result_keys.append((bibliotheca, chunk_id))
+            if len(results) == top:
+                break
+
+        if not no_frecency and result_keys:
+            for bib in {b for b, _ in result_keys}:
+                db.save_last_query_vec(connections[bib], vec_f16)
+
+        return results
+    finally:
+        for con in connections.values():
             con.close()
-
-    scored = rrf(lists)
-
-    # Frecency enters as a capped additive bonus (~2 RRF positions) on chunks
-    # already retrieved by vector/FTS — enough to reorder the 2-5 band, rarely
-    # enough to flip a confident rank-1. A chunk with only frecency history and
-    # no lexical/semantic hit is not pulled in.
-    for key in list(scored):
-        if key in frecency_scores:
-            scored[key] += min(frecency_scores[key] / db.BONUS_SCALE, db.MAX_BONUS)
-
-    q_tokens = _tokens(query)
-    if q_tokens:
-        for key, row in rows.items():
-            match = q_tokens & _tokens(row["section"] or "")
-            if match:
-                scored[key] = scored.get(key, 0.0) + \
-                    BONUS_HEADING * len(match) / len(q_tokens)
-
-    results: list[dict] = []
-    result_keys: list[tuple[Path, int]] = []
-    seen: set[str] = set()
-    for (bibliotheca, chunk_id), score in sorted(scored.items(),
-                                                 key=lambda p: -p[1]):
-        row = rows.get((bibliotheca, chunk_id))
-        if row is None:
-            continue
-        filepath = str((bibliotheca / row["doc"] / row["file"]).resolve())
-        if filepath in seen:
-            continue
-        seen.add(filepath)
-        start, end = _interval(filepath, row, context)
-        results.append({
-            "path": filepath, "doc": row["doc"], "file": row["file"],
-            "section": row["section"], "line_start": start,
-            "line_end": end, "score": round(score, 4),
-        })
-        result_keys.append((bibliotheca, chunk_id))
-        if len(results) == top:
-            break
-
-    # Save the query vector so `biblio hit` can record the section the caller
-    # actually used. This is the only write a plain search makes.
-    if not no_frecency and result_keys:
-        for bib in {b for b, _ in result_keys}:
-            con = db.connect(bib)
-            try:
-                db.save_last_query_vec(con, vec_f16)
-            finally:
-                con.close()
-
-    return results
 
 
 def format_results(results: list[dict]) -> str:

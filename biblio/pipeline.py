@@ -63,6 +63,13 @@ def _strip_source_frontmatter(text: str) -> str:
     return line + text[m.end():]
 
 
+def _fast_page_count(path: Path) -> int:
+    """Page count without layout analysis — just opens the PDF index."""
+    import pymupdf
+    with pymupdf.open(path) as doc:
+        return len(doc)
+
+
 def _get_text(path: Path, device: str, warn, name: str,
               fast: bool = False) -> tuple[str, dict]:
     """(raw markdown, route). Input that's already text skips triage and conversion."""
@@ -70,6 +77,14 @@ def _get_text(path: Path, device: str, warn, name: str,
         warn(f"{name}: already text, skipping conversion")
         raw = path.read_text(encoding="utf-8", errors="replace")
         return _strip_source_frontmatter(raw), {}
+    # ponytail: fast mode skips triage entirely — find_tables() is the expensive
+    # call and all pages go through pymupdf4llm anyway. Upgrade path: none, this
+    # is the correct behavior.
+    if fast:
+        n = _fast_page_count(path)
+        warn(f"{name}: {n} pages [fast: no triage]")
+        route = {"native": list(range(1, n + 1)), "complex": [], "ocr": []}
+        return convert(path, route, device=device, warn=warn, fast=True), route
     warn(f"{name}: triaging")
     route = triage(path)
     n_nat, n_cplx, n_ocr = len(route["native"]), len(route["complex"]), len(route["ocr"])
@@ -86,7 +101,7 @@ def _get_text(path: Path, device: str, warn, name: str,
 
 
 def _process_one(path: Path, bibliotheca: Path, device: str, force: bool,
-                 warn, summarize_with_ollama: bool = False,
+                 warn, con, summarize_with_ollama: bool = False,
                  max_size_mb: float | None = None, fast: bool = False) -> str:
     name = slug(path.stem)
     folder = bibliotheca / name
@@ -128,12 +143,8 @@ def _process_one(path: Path, bibliotheca: Path, device: str, force: bool,
 
     warn(f"{name}: indexing")
     chunks = embed.doc_chunks(folder)
-    con = db.connect(bibliotheca)
-    try:
-        db.replace_document(con, name, chunks,
-                            embed.vectorize([c["text"] for c in chunks]))
-    finally:
-        con.close()
+    db.replace_document(con, name, chunks,
+                        embed.vectorize([c["text"] for c in chunks]))
     record["chunks"] = len(chunks)
 
     if summarize_with_ollama:
@@ -166,17 +177,21 @@ def ingest(target: Path | str, output: Path | str | None = None, device: str = "
     summarize_with_ollama = ollama.wants_summary(summary, ask, warn)
 
     count = {"ok": 0, "skipped": 0, "failed": 0}
-    for f in _files(Path(target)):
-        if f in exclude:
-            count["skipped"] += 1
-            continue
-        try:
-            count[_process_one(f, bibliotheca, device, force, warn,
-                               summarize_with_ollama,
-                               max_size_mb=max_size_mb, fast=fast)] += 1
-        except Exception as err:
-            warn(f"{f.name}: FAILED ({err})")
-            count["failed"] += 1
+    con = db.connect(bibliotheca)
+    try:
+        for f in _files(Path(target)):
+            if f in exclude:
+                count["skipped"] += 1
+                continue
+            try:
+                count[_process_one(f, bibliotheca, device, force, warn, con,
+                                   summarize_with_ollama,
+                                   max_size_mb=max_size_mb, fast=fast)] += 1
+            except Exception as err:
+                warn(f"{f.name}: FAILED ({err})")
+                count["failed"] += 1
+    finally:
+        con.close()
 
     if exclude:
         warn("\nskipped (over OCR budget):")

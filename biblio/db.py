@@ -41,24 +41,10 @@ CREATE INDEX IF NOT EXISTS idx_accesses_chunk ON accesses(chunk_id);
 """
 
 
-def _migrate_schema(con: sqlite3.Connection) -> None:
-    """Drop old Portuguese-column tables so they're recreated with new names."""
-    try:
-        con.execute("SELECT chave FROM config LIMIT 1")
-        con.executescript("""
-            DROP TABLE IF EXISTS chunks_fts;
-            DROP TABLE IF EXISTS chunks;
-            DROP TABLE IF EXISTS config;
-        """)
-    except sqlite3.OperationalError:
-        pass
-
-
 def connect(bibliotheca: Path) -> sqlite3.Connection:
     con = sqlite3.connect(bibliotheca / DB_FILE)
     con.execute("PRAGMA foreign_keys = ON")
     con.row_factory = sqlite3.Row
-    _migrate_schema(con)
     con.executescript(SCHEMA)
     con.execute("INSERT OR IGNORE INTO config VALUES('session_counter', '0')")
     con.commit()

@@ -12,11 +12,6 @@ def _confirm(text: str) -> bool:
     return input(f"{text} [y/N] ").strip().lower() in ("y", "yes", "s", "sim")
 
 
-def _choose(text: str, options: str, default: str) -> str:
-    raw = input(f"{text} ").strip().lower()
-    return raw[:1] if raw[:1] in options else default
-
-
 def _minutes(ocr_pages: int) -> int:
     return round(ocr_pages * 30 / 60)  # ~30s/page on CPU
 
@@ -41,10 +36,11 @@ def _over_cap_exclude(report: dict, interactive: bool) -> frozenset | None:
     """Returns the set of paths to exclude, or None to abort the run."""
     over = report["over_cap"]
     if interactive:
-        choice = _choose(
+        raw = input(
             f"{len(over)} files exceed the OCR cap "
             f"(~{_minutes(sum(over.values()))} min total). "
-            "[p]roceed with all / [s]kip them / [a]bort?", "psa", "s")
+            "[p]roceed with all / [s]kip them / [a]bort? ").strip().lower()
+        choice = raw[:1] if raw[:1] in "psa" else "s"
         if choice == "p":
             return frozenset()
         if choice == "a":
@@ -185,8 +181,10 @@ def main(argv=None) -> int:
 
     if args.command == "add":
         target = Path(args.target)
+        # ponytail: survey calls triage (find_tables) on every PDF — skip it
+        # when --fast since OCR routing is irrelevant. No upgrade path needed.
         report = (pipeline.survey(target, args.max_ocr_pages)
-                  if args.dry_run or (target.is_dir() and args.max_ocr_pages)
+                  if not args.fast and (args.dry_run or (target.is_dir() and args.max_ocr_pages))
                   else None)
         if args.dry_run:
             _print_survey(report, target)

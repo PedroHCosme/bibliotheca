@@ -30,13 +30,13 @@ def _is_structure(line: str) -> bool:
 
 
 def _remove_repeated(lines: list[str]) -> list[str]:
+    stripped = [_strip_emphasis(line) for line in lines]
     candidates = Counter(
-        _strip_emphasis(line) for line in lines
-        if _strip_emphasis(line) and len(_strip_emphasis(line)) <= MAX_HEADER_CHARS
-        and not _is_structure(line)
+        s for s, line in zip(stripped, lines)
+        if s and len(s) <= MAX_HEADER_CHARS and not _is_structure(line)
     )
     junk = {text for text, n in candidates.items() if n >= REPETITION_THRESHOLD}
-    return [line for line in lines if _strip_emphasis(line) not in junk]
+    return [line for line, s in zip(lines, stripped) if s not in junk]
 
 
 def _remove_page_numbers(lines: list[str]) -> list[str]:
