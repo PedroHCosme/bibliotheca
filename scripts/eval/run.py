@@ -25,19 +25,35 @@ def pending(questions, arm_names, done):
                     yield q, arm, rep
 
 
+def remove_new(folder, before) -> list[str]:
+    """Delete what a run created in its cwd (e.g. a PDF converted to .txt), so no later run finds it."""
+    # ponytail: only new paths are undone; an edited source file would survive (not seen in pilots)
+    new = sorted(set(folder.rglob("*")) - before, key=lambda p: len(p.parts), reverse=True)
+    for p in new:
+        if p.is_dir():
+            shutil.rmtree(p, ignore_errors=True)
+        else:
+            p.unlink(missing_ok=True)
+    return [str(p.relative_to(folder)) for p in new]
+
+
 def run_one(q: dict, arm: str, rep: int, claude: str, execute=subprocess.run) -> dict:
     record = {"key": key(q, arm, rep), "id": q["id"], "corpus": q["corpus"],
               "kind": q["kind"], "arm": arm, "rep": rep}
+    folder = arms.cwd(arm, q["corpus"])
+    before = set(folder.rglob("*"))
     started = time.time()
     try:
         proc = execute(arms.command(arm, q["corpus"], claude),
                        input=arms.PROMPT.format(question=q["question"]),
                        capture_output=True, text=True, encoding="utf-8",
-                       cwd=arms.cwd(arm, q["corpus"]), env=arms.env(arm, q["corpus"]),
+                       cwd=folder, env=arms.env(arm, q["corpus"]),
                        timeout=TIMEOUT_S)
         record.update(transcript.parse(proc.stdout.splitlines()))
     except (subprocess.TimeoutExpired, ValueError) as err:
         record.update(answer="", is_error=True, tokens=0, tool_calls=[], error=str(err)[:500])
+    finally:
+        record["leftovers"] = remove_new(folder, before)
     record["seconds"] = round(time.time() - started, 1)
     record["used_biblio"] = transcript.used_biblio(record["tool_calls"])
     return record

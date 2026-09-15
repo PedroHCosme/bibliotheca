@@ -21,9 +21,17 @@ def test_run_one_parses_transcript(monkeypatch, tmp_path):
 
     def fake(cmd, **kw):
         seen.update(kw)
+        (kw["cwd"] / "tmp").mkdir()
+        (kw["cwd"] / "tmp" / "book.txt").write_text("converted", encoding="utf-8")
         return SimpleNamespace(stdout="\n".join(LINES), returncode=0, stderr="")
 
+    cwd = arms.cwd("B-current", "robotics")
+    cwd.mkdir(parents=True)
+    (cwd / "book.pdf").write_bytes(b"%PDF")
     rec = run.run_one(Q, "B-current", 1, "claude", execute=fake)
+    assert sorted(p.name for p in cwd.iterdir()) == ["book.pdf"]
+    assert sorted(rec["leftovers"]) == ["tmp", "tmp\\book.txt"] or \
+        sorted(rec["leftovers"]) == ["tmp", "tmp/book.txt"]
     assert rec["key"] == "t|B-current|1"
     assert rec["tokens"] == 2090 and rec["used_biblio"] is True
     assert "Question: q" in seen["input"]
