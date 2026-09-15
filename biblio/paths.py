@@ -1,4 +1,5 @@
 """Where bibliothecas live and how names become paths."""
+import os
 import re
 import unicodedata
 from pathlib import Path
@@ -6,7 +7,9 @@ from pathlib import Path
 ROOT = Path.home() / "biblio"
 DEFAULT_BIBLIOTHECA = ROOT / "geral"
 
-REGISTRY = Path.home() / ".biblio" / "bibliothecas.txt"
+# Overridable so an eval (or a test harness) can isolate itself from the user's bibliothecas.
+REGISTRY = Path(os.environ.get("BIBLIO_REGISTRY")
+                or Path.home() / ".biblio" / "bibliothecas.txt")
 
 
 def slug(text: str, limit: int = 60) -> str:
