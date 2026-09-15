@@ -5,3 +5,4 @@ __pycache__/
 bibliotheca/
 *.db
 docs/superpowers/
+scripts/eval/data/
