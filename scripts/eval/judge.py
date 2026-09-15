@@ -87,14 +87,23 @@ def main(argv=None) -> None:
     verdicts = gold.load(out) if out.exists() else []
     judged = {v["key"] for v in verdicts}
 
+    failed = []
     for r in runs:
         if r["key"] in judged:
             continue
-        v = judge_one(questions[r["id"]], r, claude)
+        try:
+            v = judge_one(questions[r["id"]], r, claude)
+        except (subprocess.SubprocessError, ValueError, KeyError) as err:
+            # Not recorded: scoring a judge failure 0/0 would charge it to the arm. Re-run retries it.
+            failed.append(r["key"])
+            print(f"{r['key']} JUDGE FAILED: {err!r}"[:300], flush=True)
+            continue
         verdicts.append(v)
         with out.open("a", encoding="utf-8") as f:
             f.write(json.dumps(v, ensure_ascii=False) + "\n")
         print(f"{v['key']} correct={v['correct']} cited={v['cited']}", flush=True)
+    if failed:
+        sys.exit(f"{len(failed)} runs not judged; re-run to retry: {failed}")
 
     sheet = arms.DATA / "spotcheck" / f"{corpus}.md"
     sheet.parent.mkdir(parents=True, exist_ok=True)

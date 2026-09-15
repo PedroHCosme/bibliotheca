@@ -1,5 +1,9 @@
-from scripts.eval.gold import validate
+from scripts.eval.gold import normalize, validate
 from tests.conftest import _pdf
+
+
+def test_normalize_expands_ligatures():
+    assert normalize("ﬁnite  ﬁeld") == "finite field"
 
 
 def _record(**over):

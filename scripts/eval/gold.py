@@ -2,6 +2,7 @@
 import json
 import re
 import sys
+import unicodedata
 from collections import Counter
 from functools import lru_cache
 from pathlib import Path
@@ -16,6 +17,7 @@ def load(path: Path) -> list[dict]:
 
 
 def normalize(text: str) -> str:
+    text = unicodedata.normalize("NFKC", text)  # PDF ligatures (ﬁ) → plain letters
     text = re.sub(r"\\(?:textbf|textit)\{(.*?)\}", r"\1", text)
     text = re.sub(r"~?\\cite\{[^}]*\}", "", text)
     text = re.sub(r"[*`#]", "", text)
