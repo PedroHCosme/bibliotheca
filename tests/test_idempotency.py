@@ -45,6 +45,22 @@ def test_reprocessing_does_not_duplicate_chunks(ingested_bibliotheca):
     assert before == after > 0
 
 
+def test_same_file_name_in_different_folders_keeps_both(tmp_path):
+    docs = tmp_path / "docs"
+    for client in ("alcoa", "samarco"):
+        (docs / client).mkdir(parents=True)
+        (docs / client / "index.md").write_text(
+            f"# {client}\n" + f"{client} deployment notes. " * 60, encoding="utf-8")
+    output = tmp_path / "lib"
+
+    assert ingest(docs, output=output)["ok"] == 2
+    folders = sorted(p.name for p in output.iterdir() if (p / "_meta.yaml").exists())
+    assert folders == ["index", "samarco-index"]
+    assert "samarco" in next((output / "samarco-index").glob("[0-9]*.md")).read_text(
+        encoding="utf-8")
+    assert ingest(docs, output=output) == {"ok": 0, "skipped": 2, "failed": 0}
+
+
 def test_markdown_input_is_also_idempotent(tmp_path):
     source = tmp_path / "already-converted.md"
     source.write_text("# Escopo\n" + "texto tecnico. " * 60, encoding="utf-8")

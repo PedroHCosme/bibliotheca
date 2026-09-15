@@ -100,10 +100,29 @@ def _get_text(path: Path, device: str, warn, name: str,
     return convert(path, route, device=device, warn=warn, fast=fast), route
 
 
+def _doc_name(path: Path, bibliotheca: Path) -> str:
+    """File-name slug, unless another source owns that folder: then prefix parent folder names.
+
+    `docs/alcoa/index.md` stays `index`; a later `docs/samarco/index.md` becomes `samarco-index`.
+    Names already on disk never change, so re-running `add` stays idempotent.
+    """
+    source = str(path.resolve())
+    parents = [slug(p) for p in path.resolve().parent.parts if slug(p)]
+    for depth in range(len(parents) + 1):
+        name = "-".join([*parents[len(parents) - depth:], slug(path.stem)])
+        if meta.read(bibliotheca / name).get("source") in (None, source):
+            return name
+    # ponytail: only reachable when two sources share the whole path slug (e.g. "A b" vs "a-b")
+    n = 2
+    while meta.read(bibliotheca / f"{name}-{n}").get("source") not in (None, source):
+        n += 1
+    return f"{name}-{n}"
+
+
 def _process_one(path: Path, bibliotheca: Path, device: str, force: bool,
                  warn, con, summarize_with_ollama: bool = False,
                  max_size_mb: float | None = None, fast: bool = False) -> str:
-    name = slug(path.stem)
+    name = _doc_name(path, bibliotheca)
     folder = bibliotheca / name
     size_mb = path.stat().st_size / (1024 * 1024)
     if max_size_mb is not None and size_mb > max_size_mb:
@@ -115,10 +134,6 @@ def _process_one(path: Path, bibliotheca: Path, device: str, force: bool,
     if not force and meta.already_processed(folder, digest):
         warn(f"{name}: unchanged, skipping")
         return "skipped"
-
-    prev = meta.read(folder).get("source")
-    if prev and prev != str(path.resolve()):
-        warn(f"{name}: WARNING — same name as {Path(prev).name}, overwriting")
 
     try:
         raw, route = _get_text(path, device, warn, name, fast=fast)
