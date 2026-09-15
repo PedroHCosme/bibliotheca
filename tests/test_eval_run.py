@@ -27,7 +27,7 @@ def test_run_one_parses_transcript(monkeypatch, tmp_path):
     assert rec["key"] == "t|B-current|1"
     assert rec["tokens"] == 2090 and rec["used_biblio"] is True
     assert "Question: q" in seen["input"]
-    assert seen["cwd"] == tmp_path / "corpora" / "robotics"
+    assert seen["cwd"] == tmp_path / "b" / "current" / "robotics" / "docs"
 
 
 def test_run_one_records_timeout(monkeypatch, tmp_path):

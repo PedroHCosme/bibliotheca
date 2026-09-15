@@ -76,7 +76,7 @@ def main(argv=None) -> None:
         build_sources(corpus)
         build_bibliotheca(corpus)
         build_slices(corpus)
-        arms.write_plugin(corpus)
+        arms.write_b(corpus)
         print(f"{corpus}: ready", flush=True)
     # `biblio add` reinstalls ~/.claude/skills/bibliotheca from the eval registry;
     # put the user's real skill back.
