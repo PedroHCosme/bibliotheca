@@ -18,11 +18,18 @@ SCHEMA = {"type": "object",
 PROMPT = """You grade an answer against a gold answer. Reply only with the JSON object.
 
 correct = 1 if the answer states every key fact of the gold answer and contradicts none; otherwise 0.
-cited = 1 if the answer cites at least one gold document — by its file name, its document id, or a path
-whose folder is the document id — and locates the answer within it: a section, chapter, example or
-heading name that contains the gold anchor, or a page number. Gold pages are PDF page indexes; books
-print their own numbering, often offset by up to ~20, so a page within 20 of the gold page counts.
-A document named without any location inside it gets 0.
+cited = 1 if the answer identifies where the fact came from, well enough for a reader to find it, AND
+that place is a gold document. Any of these identifies the document: its file name, its document id,
+its title or author, a path whose folder is the document id, or the name of a slice/section file cut
+from it (e.g. "311-358-vision-based-control.md", "81-86-forward-and-inverse-kinematics.md" — these
+belong to the gold document even when the parent folder is not written out).
+The answer must also locate the fact inside the document: a section, chapter, example, table or
+heading name, a slice file name, or a page number. Gold pages are PDF page indexes; books print their
+own numbering, often offset by up to ~20, so any page within 20 of the gold page counts, and a correct
+section or example name counts even when the page is absent or further off.
+Cite 0 only when no gold document is identified at all, or the answer names a document with no
+location inside it. Do not require the exact file path, and do not penalise an answer for also citing
+a helper file it created itself (e.g. a text dump of the PDF) alongside the real document.
 
 Question: {question}
 Gold answer (key facts): {answer}
