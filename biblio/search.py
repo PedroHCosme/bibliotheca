@@ -87,18 +87,28 @@ def search(query: str, output=None, top: int = 5, doc: str | None = None,
                 continue
             seen.add(filepath)
             start, end = _interval(filepath, row, context)
-            # tight chunk text, captured before _interval widens the range to
-            # the whole section — the snippet is what actually matched.
-            snippet_lines = [l for l in row["text"].splitlines() if l.strip()][:3]
             results.append({
                 "path": filepath, "doc": row["doc"], "file": row["file"],
                 "section": row["section"], "line_start": start,
                 "line_end": end, "score": round(score, 4),
-                "snippet": "\n".join(snippet_lines),
             })
             result_keys.append((bibliotheca, chunk_id))
             if len(results) == top:
                 break
+
+        # text only for the handful of chunks that survived top-K/dedup —
+        # independent of _interval()'s widening, the snippet is just the
+        # matched chunk's text regardless of how the shown range grew.
+        by_bib: dict[Path, list[int]] = {}
+        for bibliotheca, chunk_id in result_keys:
+            by_bib.setdefault(bibliotheca, []).append(chunk_id)
+        texts: dict[tuple[Path, int], str] = {}
+        for bibliotheca, ids in by_bib.items():
+            for cid, text in db.chunk_texts(connections[bibliotheca], ids).items():
+                texts[(bibliotheca, cid)] = text
+        for result, key in zip(results, result_keys):
+            snippet_lines = [l for l in texts[key].splitlines() if l.strip()][:3]
+            result["snippet"] = "\n".join(snippet_lines)
 
         if not no_frecency and result_keys:
             for bib in {b for b, _ in result_keys}:
