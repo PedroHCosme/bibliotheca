@@ -250,15 +250,16 @@ def main(argv=None) -> int:
         return 0
 
     if args.command == "gui":
-        from biblio.gui import launch
-        launch(output=args.out)
-        return 0
+        # ponytail: disabled for now (needs a redesign pass), not deleted.
+        # Remove this guard to bring it back.
+        print("the GUI is disabled for now — use `biblio add`/`biblio search` "
+              "or the Claude Code skill instead.")
+        return 1
 
     if args.command == "shortcut":
-        from biblio.shortcut import create
-        if lnk := create():
-            print(lnk)
-        return 0
+        # ponytail: the shortcut only opens the (disabled) GUI.
+        print("disabled along with the GUI for now.")
+        return 1
 
     if args.command == "version":
         from importlib.metadata import version

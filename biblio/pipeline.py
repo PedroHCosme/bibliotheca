@@ -1,6 +1,8 @@
 """ingest(): the single entry point. CLI and GUI are shells over it."""
+import os
 import re
 from collections import Counter
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import yaml
@@ -13,6 +15,10 @@ from biblio.slice import slice_doc
 from biblio.triage import triage
 
 EXTENSIONS = (".pdf", ".md", ".txt", ".tex")
+
+# ponytail: capped, not just cpu_count() — each worker loads its own Docling/OCR
+# models, so more workers than this risks trading CPU idle time for RAM thrashing.
+MAX_WORKERS = 4
 
 
 def _files(target: Path) -> list[Path]:
@@ -124,30 +130,36 @@ def _doc_name(path: Path, bibliotheca: Path) -> str:
     return f"{name}-{n}"
 
 
-def _process_one(path: Path, bibliotheca: Path, device: str, force: bool,
-                 warn, con, summarize_with_ollama: bool = False,
-                 max_size_mb: float | None = None, fast: bool = False) -> str:
-    name = _doc_name(path, bibliotheca)
-    folder = bibliotheca / name
+def _check_skip(path: Path, bibliotheca: Path, name: str, force: bool,
+                max_size_mb: float | None, warn) -> str | None:
+    """'skipped' if this file needs no work, else None."""
     size_mb = path.stat().st_size / (1024 * 1024)
     if max_size_mb is not None and size_mb > max_size_mb:
         warn(f"{name}: {size_mb:.1f}MB > limit of {max_size_mb}MB, skipping")
         return "skipped"
-
-    digest = meta.hash_file(path)
-
-    if not force and meta.already_processed(folder, digest):
+    if not force and meta.already_processed(bibliotheca / name, meta.hash_file(path)):
         warn(f"{name}: unchanged, skipping")
         return "skipped"
+    return None
 
+
+def _convert_worker(path: Path, device: str, fast: bool, name: str) -> dict:
+    """Runs in a worker process (parallel `add`): the OCR-heavy, file-independent
+    half of processing one document. No db/folder writes here — those stay
+    serialized in the main process, after this returns.
+    """
+    logs: list[str] = []
     try:
-        raw, route = _get_text(path, device, warn, name, fast=fast)
+        raw, route = _get_text(path, device, logs.append, name, fast=fast)
+        return {"ok": True, "raw": raw, "route": route, "logs": logs}
     except Exception as err:
-        warn(f"{name}: FAILED ({err})")
-        meta.write(folder, {"source": str(path.resolve()), "hash": digest,
-                            "failed": str(err)[:120]})
-        return "failed"
+        return {"ok": False, "error": str(err), "logs": logs}
 
+
+def _finish_one(path: Path, bibliotheca: Path, name: str, raw: str, route: dict,
+                warn, con, summarize_with_ollama: bool = False) -> str:
+    """Slicing, folder + db writes, optional summary. Fast — stays sequential."""
+    folder = bibliotheca / name
     warn(f"{name}: slicing")
     slices = slice_doc(normalize(raw), with_pages=bool(route))
 
@@ -158,7 +170,7 @@ def _process_one(path: Path, bibliotheca: Path, device: str, force: bool,
         (folder / s.name).write_text(_frontmatter(s, name) + s.text + "\n",
                                      encoding="utf-8")
 
-    record = meta.new_record(path, digest, route)
+    record = meta.new_record(path, meta.hash_file(path), route)
     record["slices"] = len(slices)
 
     warn(f"{name}: indexing")
@@ -176,6 +188,27 @@ def _process_one(path: Path, bibliotheca: Path, device: str, force: bool,
     meta.write(folder, record)
     warn(f"{name}: {len(slices)} slices")
     return "ok"
+
+
+def _process_one(path: Path, bibliotheca: Path, device: str, force: bool,
+                 warn, con, summarize_with_ollama: bool = False,
+                 max_size_mb: float | None = None, fast: bool = False) -> str:
+    """Sequential path: one file, conversion then finish, no worker pool."""
+    name = _doc_name(path, bibliotheca)
+    reason = _check_skip(path, bibliotheca, name, force, max_size_mb, warn)
+    if reason:
+        return reason
+
+    try:
+        raw, route = _get_text(path, device, warn, name, fast=fast)
+    except Exception as err:
+        warn(f"{name}: FAILED ({err})")
+        meta.write(bibliotheca / name, {"source": str(path.resolve()),
+                                        "hash": meta.hash_file(path),
+                                        "failed": str(err)[:120]})
+        return "failed"
+
+    return _finish_one(path, bibliotheca, name, raw, route, warn, con, summarize_with_ollama)
 
 
 def ingest(target: Path | str, output: Path | str | None = None, device: str = "auto",
@@ -199,17 +232,54 @@ def ingest(target: Path | str, output: Path | str | None = None, device: str = "
     count = {"ok": 0, "skipped": 0, "failed": 0}
     con = db.connect(bibliotheca)
     try:
+        todo: list[tuple[Path, str]] = []
         for f in _files(Path(target)):
             if f in exclude:
                 count["skipped"] += 1
                 continue
-            try:
-                count[_process_one(f, bibliotheca, device, force, warn, con,
-                                   summarize_with_ollama,
-                                   max_size_mb=max_size_mb, fast=fast)] += 1
-            except Exception as err:
-                warn(f"{f.name}: FAILED ({err})")
-                count["failed"] += 1
+            name = _doc_name(f, bibliotheca)
+            reason = _check_skip(f, bibliotheca, name, force, max_size_mb, warn)
+            if reason:
+                count[reason] += 1
+            else:
+                todo.append((f, name))
+
+        # Only PDFs pay real conversion cost (OCR/Docling) — parallelizing a
+        # folder of .md files would just add process-pool overhead for nothing.
+        workers = max(1, min(os.cpu_count() or 1, MAX_WORKERS))
+        pdfs = sum(1 for f, _ in todo if f.suffix.lower() == ".pdf")
+        if workers > 1 and pdfs > 1:
+            warn(f"converting {pdfs} PDFs with {workers} parallel workers")
+            with ProcessPoolExecutor(max_workers=workers) as pool:
+                futures = {pool.submit(_convert_worker, f, device, fast, name): (f, name)
+                          for f, name in todo}
+                for fut in as_completed(futures):
+                    f, name = futures[fut]
+                    result = fut.result()
+                    for line in result["logs"]:
+                        warn(line)
+                    if not result["ok"]:
+                        warn(f"{name}: FAILED ({result['error']})")
+                        meta.write(bibliotheca / name, {"source": str(f.resolve()),
+                                                        "hash": meta.hash_file(f),
+                                                        "failed": result["error"][:120]})
+                        count["failed"] += 1
+                        continue
+                    try:
+                        count[_finish_one(f, bibliotheca, name, result["raw"], result["route"],
+                                         warn, con, summarize_with_ollama)] += 1
+                    except Exception as err:
+                        warn(f"{name}: FAILED ({err})")
+                        count["failed"] += 1
+        else:
+            for f, _ in todo:
+                try:
+                    count[_process_one(f, bibliotheca, device, force, warn, con,
+                                       summarize_with_ollama,
+                                       max_size_mb=max_size_mb, fast=fast)] += 1
+                except Exception as err:
+                    warn(f"{f.name}: FAILED ({err})")
+                    count["failed"] += 1
     finally:
         con.close()
 
