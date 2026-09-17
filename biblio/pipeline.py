@@ -5,14 +5,14 @@ from pathlib import Path
 
 import yaml
 
-from biblio import db, embed, meta, ollama, summarize
+from biblio import db, embed, meta, ollama, summarize, tex
 from biblio.convert import convert
 from biblio.normalize import normalize
 from biblio.paths import root, register, slug
 from biblio.slice import slice_doc
 from biblio.triage import triage
 
-EXTENSIONS = (".pdf", ".md", ".txt")
+EXTENSIONS = (".pdf", ".md", ".txt", ".tex")
 
 
 def _files(target: Path) -> list[Path]:
@@ -76,6 +76,8 @@ def _get_text(path: Path, device: str, warn, name: str,
     if path.suffix.lower() != ".pdf":
         warn(f"{name}: already text, skipping conversion")
         raw = path.read_text(encoding="utf-8", errors="replace")
+        if path.suffix.lower() == ".tex":
+            raw = tex.to_markdown(raw)
         return _strip_source_frontmatter(raw), {}
     # ponytail: fast mode skips triage entirely — find_tables() is the expensive
     # call and all pages go through pymupdf4llm anyway. Upgrade path: none, this
