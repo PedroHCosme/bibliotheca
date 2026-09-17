@@ -257,5 +257,5 @@ def details(con: sqlite3.Connection, ids: list[int]) -> dict[int, sqlite3.Row]:
         return {}
     placeholders = ",".join("?" * len(ids))
     return {row["id"]: row for row in con.execute(
-        f"SELECT id, doc, file, section, line_start, line_end FROM chunks "
+        f"SELECT id, doc, file, section, line_start, line_end, text FROM chunks "
         f"WHERE id IN ({placeholders})", ids)}

@@ -1,4 +1,4 @@
-"""Hybrid search. Returns path, lines, score, and heading. Never the body."""
+"""Hybrid search. Returns path, lines, score, heading, and a matched-line snippet."""
 from pathlib import Path
 
 import numpy as np
@@ -87,10 +87,14 @@ def search(query: str, output=None, top: int = 5, doc: str | None = None,
                 continue
             seen.add(filepath)
             start, end = _interval(filepath, row, context)
+            # tight chunk text, captured before _interval widens the range to
+            # the whole section — the snippet is what actually matched.
+            snippet_lines = [l for l in row["text"].splitlines() if l.strip()][:3]
             results.append({
                 "path": filepath, "doc": row["doc"], "file": row["file"],
                 "section": row["section"], "line_start": start,
                 "line_end": end, "score": round(score, 4),
+                "snippet": "\n".join(snippet_lines),
             })
             result_keys.append((bibliotheca, chunk_id))
             if len(results) == top:
@@ -109,8 +113,11 @@ def search(query: str, output=None, top: int = 5, doc: str | None = None,
 def format_results(results: list[dict]) -> str:
     if not results:
         return "no results"
-    return "\n".join(
-        f"{r['path']}:{r['line_start']}-{r['line_end']}"
-        f"  {r['score']:.3f}  {r['section']}"
-        for r in results
-    )
+    blocks = []
+    for r in results:
+        # pointer line must stay byte-identical: `biblio hit "<path:start-end>"` parses it.
+        lines = [f"{r['path']}:{r['line_start']}-{r['line_end']}"
+                 f"  {r['score']:.3f}  {r['section']}"]
+        lines += [f"    {l}" for l in r.get("snippet", "").splitlines()]
+        blocks.append("\n".join(lines))
+    return "\n".join(blocks)

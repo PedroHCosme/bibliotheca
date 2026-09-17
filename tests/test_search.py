@@ -40,12 +40,40 @@ def test_one_result_per_file(synthetic_bibliotheca):
     assert len(paths) == len(set(paths))
 
 
-def test_output_has_pointer_never_body(synthetic_bibliotheca):
+def test_pointer_lines_have_no_body(synthetic_bibliotheca):
+    """The pointer line itself stays a pure pointer; the body now lives in the
+    indented snippet lines underneath it (Task 7 reverses the old "never the
+    body" rule for the *overall* output, not for the pointer line `biblio hit`
+    parses)."""
     results = search("comprimento de ancoragem", output=synthetic_bibliotheca, top=3)
     text = format_results(results)
-    assert ".md:" in text
-    assert "resistencia de aderencia de calculo" not in text, "body leaked into output"
-    assert max(len(l) for l in text.splitlines()) < 200, "line too long"
+    pointer_lines = [l for l in text.splitlines() if not l.startswith(" ")]
+    assert all(".md:" in l for l in pointer_lines)
+    assert all("resistencia de aderencia de calculo" not in l for l in pointer_lines), \
+        "body leaked into pointer line"
+    assert max(len(l) for l in pointer_lines) < 200, "pointer line too long"
+
+
+def test_format_results_includes_matched_snippet():
+    """format_results prints the matched-chunk text under the pointer, and the
+    pointer line stays byte-identical to the pre-snippet format so
+    `biblio hit "<path:start-end>"` keeps parsing it."""
+    results = [{
+        "path": "/x/y/doc.md", "doc": "y", "file": "doc.md", "section": "1 Intro",
+        "line_start": 3, "line_end": 5, "score": 0.842,
+        "snippet": "first matched line\nsecond matched line",
+    }]
+    text = format_results(results)
+    lines = text.splitlines()
+    assert lines[0] == "/x/y/doc.md:3-5  0.842  1 Intro"
+    assert "first matched line" in text
+    assert "second matched line" in text
+
+
+def test_search_result_carries_snippet_from_tight_chunk_not_widened_section(synthetic_bibliotheca):
+    results = search("comprimento de ancoragem", output=synthetic_bibliotheca, top=1)
+    assert "snippet" in results[0]
+    assert results[0]["snippet"].strip()
 
 
 def test_returned_path_is_absolute_and_exists(synthetic_bibliotheca):
