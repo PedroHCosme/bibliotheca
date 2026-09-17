@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 
 from biblio import ollama
+from biblio.embed import _FRONTMATTER
 
 MAX_SAMPLE = 6_000
 
@@ -18,7 +19,6 @@ Documento:
 {amostra}"""
 
 
-_FRONTMATTER = re.compile(r"\A---\r?\n.*?\r?\n---\r?\n", re.S)
 _TOC_LINE = re.compile(r"^\s*(?:[-*+]\s+)?(?:\[\[|\[[^\]]*\]\(#|\d+(?:\.\d+)*\s|.{0,50}\.{3,}\s*\d+\s*$)")
 _ALIASES_LINE = re.compile(r"^\*[^*]+\*$")
 

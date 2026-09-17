@@ -147,8 +147,9 @@ that's the one flag CLI users would never hit blind, so you shouldn't either.
 
 - Index block with **WARNING** about low-quality OCR: the text may be corrupted.
   Tell the user before citing numbers from it.
-- Every file starts with frontmatter (`doc`, `section`, `parent`, and `pages` when
-  the source was PDF). Use `pages` to cite the original page.
+- Every file starts with a one-line `<!-- ... -->` comment carrying `doc`,
+  `section`, `parent`, and `pages` when the source was PDF. Use `pages` to
+  cite the original page.
 - The bibliotheca doesn't store the original file; `_meta.yaml` stores its path.
 """
 
