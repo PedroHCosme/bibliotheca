@@ -51,10 +51,10 @@ def build_sources(corpus: str) -> None:
                  arms.DATA / "manifests" / "scrambled.json")
 
 
-def build_bibliotheca(corpus: str) -> None:
-    reg = arms.registry(corpus)
+def build_bibliotheca(corpus: str, ver: str = "current") -> None:
+    reg = arms.registry(corpus, ver)
     reg.parent.mkdir(parents=True, exist_ok=True)
-    cmd = [biblio_exe(), "--out", str(arms.bibliotheca(corpus)), "add",
+    cmd = [biblio_exe(), "--out", str(arms.bibliotheca(corpus, ver)), "add",
            str(arms.sources(corpus)), "--no-summary", "--max-ocr-pages", "0"]
     print(">", " ".join(cmd), flush=True)
     # no tty: biblio never prompts; check: a crashed ingest must not be reported as "ready"
@@ -69,15 +69,16 @@ def build_slices(corpus: str) -> None:
                     ignore=shutil.ignore_patterns("CLAUDE.md", "biblio.db*"))
 
 
-def main(argv=None) -> None:
+def main(argv=None, ver: str = "current") -> None:
     chosen = (argv or sys.argv[1:]) or list(CORPORA)
     (arms.DATA / "registry").mkdir(parents=True, exist_ok=True)
     (arms.DATA / "registry" / "empty.txt").touch()
     for corpus in chosen:
         build_sources(corpus)
-        build_bibliotheca(corpus)
-        build_slices(corpus)
-        arms.write_b(corpus)
+        build_bibliotheca(corpus, ver)
+        if ver == "current":
+            build_slices(corpus)
+        arms.write_b(corpus, ver)
         print(f"{corpus}: ready", flush=True)
     # `biblio add` reinstalls ~/.claude/skills/bibliotheca from the eval registry;
     # put the user's real skill back.
@@ -85,4 +86,5 @@ def main(argv=None) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    # ponytail: EVAL_VER env var, not a real CLI flag parser — this is a manually-run operator script
+    main(ver=os.environ.get("EVAL_VER", "current"))
