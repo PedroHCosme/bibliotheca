@@ -162,6 +162,7 @@ def main(argv=None) -> int:
                    "Ollama+qwen if needed (asks first)")
     i.add_argument("--no-summary", dest="summary_mode", action="store_const", const="no",
                    help="only regenerate INDEX.md/CLAUDE.md, without touching summaries")
+    sub.add_parser("serve", help="run a local search daemon (loads the model once)")
     sub.add_parser("status", help="what was ingested, what failed, what's pending")
     sub.add_parser("libs", help="registered bibliothecas")
     sub.add_parser("skill", help="install the Claude Code skill (without creating shortcut)")
@@ -211,11 +212,19 @@ def main(argv=None) -> int:
         return 1 if count["failed"] else 0
 
     if args.command == "search":
-        results = search.search(args.query, output=args.lib or args.out,
-                                top=args.top, doc=args.doc, context=args.context,
-                                no_frecency=args.no_frecency)
+        kwargs = dict(query=args.query, output=args.lib or args.out, top=args.top,
+                     doc=args.doc, context=args.context, no_frecency=args.no_frecency)
+        from biblio import daemon
+        results = daemon.try_client_search(**kwargs)
+        if results is None:
+            results = search.search(**kwargs)
         print(json.dumps(results, ensure_ascii=False) if args.json
               else search.format_results(results))
+        return 0
+
+    if args.command == "serve":
+        from biblio import daemon
+        daemon.serve()
         return 0
 
     if args.command == "index":
