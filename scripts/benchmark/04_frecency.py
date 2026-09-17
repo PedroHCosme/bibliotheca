@@ -45,7 +45,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from biblio import db, embed
-from biblio.search import MULTIPLE, K_RRF, _tokens
+from biblio.search import MULTIPLE, _tokens
 
 BONUS_HEADING = 0.03  # removed from biblio.search; kept here so this benchmark still reproduces the old behaviour
 
@@ -346,6 +346,7 @@ def build_bibliotheca(root: Path) -> Path:
 
 
 # ---- frozen copy of the three fusion strategies (production ships `bonus`) ----
+K_RRF = 60         # rrf: fusion constant                   (was biblio.search.K_RRF)
 _W_BASE = 2.0      # weighted: frecency weight ceiling      (was db.BASE_WEIGHT)
 _W_SCALE = 1.0     # weighted: saturation scale             (was db.FRECENCY_SCALE)
 _BONUS_CAP = 0.03  # bonus: additive cap                    (db.MAX_BONUS)

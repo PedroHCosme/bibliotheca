@@ -25,7 +25,7 @@ def rrf_with(k: float, combine) -> object:
 
 VARIANTS = {
     # name: (fusion function, heading bonus)
-    "rrf-60 (current)": (rrf_with(60, lambda a, b: a + b), 0.03),
+    "rrf-60 (pre-fix baseline)": (rrf_with(60, lambda a, b: a + b), 0.03),
     "rrf-10": (rrf_with(10, lambda a, b: a + b), 0.03),
     "rrf-1": (rrf_with(1, lambda a, b: a + b), 0.03),
     "max-60": (rrf_with(60, max), 0.03),
