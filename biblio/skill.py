@@ -81,8 +81,9 @@ grep -A4 -i "<term>" <bibliotheca>/INDEX.md
 ```
 
 No shell, or the command errors out ("not found" or similar)? Read
-`<bibliotheca>/INDEX.md` directly with a file-read tool and scan for the term
-instead of retrying grep.
+`<bibliotheca>/INDEX.md` with a file-read tool in bounded chunks — e.g.
+`offset=0, limit=200`, then advance the offset — and scan each chunk for the
+term instead of retrying grep. Stop at the first chunk that contains it.
 
 The `**Terms:**` line in each block is the safety net for exact identifiers
 ("NBR 6118", "9.4.2", part name) that semantic search misses.
