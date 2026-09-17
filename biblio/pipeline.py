@@ -39,11 +39,12 @@ def survey(target: Path | str, max_ocr_pages: int = 25) -> dict:
 
 
 def _frontmatter(s, doc: str) -> str:
-    fields = {"doc": doc, "section": s.section}
+    parts = [f"{doc} §{s.section}"]
     if s.page_start is not None:
-        fields["pages"] = [s.page_start, s.page_end]
-    fields["parent"] = s.parent
-    return "---\n" + yaml.safe_dump(fields, allow_unicode=True, sort_keys=False) + "---\n\n"
+        parts.append(f"p.{s.page_start}-{s.page_end}")
+    if s.parent is not None:
+        parts.append(f"parent {s.parent}")
+    return "<!-- " + " · ".join(parts) + " -->\n\n"
 
 
 _SOURCE_FRONTMATTER = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.S)

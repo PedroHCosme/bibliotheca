@@ -17,7 +17,11 @@ DOC_PREFIX = ""
 WINDOW = 2000
 OVERLAP = 200
 
-_FRONTMATTER = re.compile(r"\A---\n.*?\n---\n", re.S)
+# Matches either frontmatter form: the old YAML block (still on disk in every
+# bibliotheca built before this change, e.g. data/bib/current/, data/c/) or the
+# new one-line HTML-comment form. Widened, not replaced — scripts/eval/floor.py
+# strips the baseline arms' YAML slices with this same regex via cache_raw().
+_FRONTMATTER = re.compile(r"\A(?:---\n.*?\n---\n|<!--.*?-->\n)", re.S)
 
 
 @functools.lru_cache(maxsize=1)
