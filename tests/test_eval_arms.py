@@ -40,5 +40,5 @@ def test_write_b_copies_sources_and_lists_only_this_corpus(monkeypatch, tmp_path
 
     text = (root / ".claude" / "skills" / "bibliotheca" / "SKILL.md").read_text(encoding="utf-8")
     assert "name: bibliotheca" in text
-    assert "(bibliothecas: robotics)" in text
+    assert "(robotics)" in text
     assert (arms.cwd("B-current", "robotics") / "book.md").is_file()

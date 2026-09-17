@@ -150,10 +150,12 @@ Do not shorten to `biblio` — not every shell has the Windows PATH.
 
 def _description() -> str:
     names = [Path(c).name for c in known_bibliothecas()[:MAX_NAMES]]
-    which = f" (bibliothecas: {', '.join(names)})" if names else ""
-    return (f"Search the user's document corpus{which}. Use whenever the "
-            "question can be answered by a corpus document instead of "
-            "general knowledge.")
+    which = f" ({', '.join(names)})" if names else ""
+    return (f"Search indexed document corpora{which} instead of grepping or "
+            "reading files directly. Use when the answer's location is "
+            "unknown, the corpus is more than a few files, or the source "
+            "is a PDF. Skip it if the question names a file already in "
+            "the working directory.")
 
 
 def skill_text() -> str:
