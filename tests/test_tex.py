@@ -63,6 +63,21 @@ def test_itemize_items_become_dashes():
     assert r"\end{itemize}" not in out
 
 
+def test_cite_inside_heading_does_not_corrupt_it():
+    src = r"\begin{document}\section{Title with \cite{foo} reference}\end{document}"
+    out = to_markdown(src)
+    assert "Title with" in out
+    assert "reference" in out
+
+
+def test_multiline_section_heading_converts():
+    src = "\\begin{document}\\section{A Long\nTitle}text\\end{document}"
+    out = to_markdown(src)
+    assert r"\section{" not in out
+    assert "A Long" in out
+    assert "Title" in out
+
+
 def test_enumerate_items_become_dashes():
     src = (
         r"\begin{document}"

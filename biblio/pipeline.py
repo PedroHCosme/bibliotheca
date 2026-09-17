@@ -74,10 +74,12 @@ def _get_text(path: Path, device: str, warn, name: str,
               fast: bool = False) -> tuple[str, dict]:
     """(raw markdown, route). Input that's already text skips triage and conversion."""
     if path.suffix.lower() != ".pdf":
-        warn(f"{name}: already text, skipping conversion")
         raw = path.read_text(encoding="utf-8", errors="replace")
         if path.suffix.lower() == ".tex":
+            warn(f"{name}: converting LaTeX to markdown")
             raw = tex.to_markdown(raw)
+        else:
+            warn(f"{name}: already text, skipping conversion")
         return _strip_source_frontmatter(raw), {}
     # ponytail: fast mode skips triage entirely — find_tables() is the expensive
     # call and all pages go through pymupdf4llm anyway. Upgrade path: none, this
