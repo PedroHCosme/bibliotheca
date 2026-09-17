@@ -45,7 +45,9 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from biblio import db, embed
-from biblio.search import MULTIPLE, K_RRF, BONUS_HEADING, _tokens
+from biblio.search import MULTIPLE, K_RRF, _tokens
+
+BONUS_HEADING = 0.03  # removed from biblio.search; kept here so this benchmark still reproduces the old behaviour
 
 # ---------- corpus: 6 clusters x 3 near-duplicate siblings ----------
 #

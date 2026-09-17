@@ -25,18 +25,18 @@ def rrf_with(k: float, combine) -> object:
 
 VARIANTS = {
     # name: (fusion function, heading bonus)
-    "rrf-60 (current)": (rrf_with(60, lambda a, b: a + b), search.BONUS_HEADING),
-    "rrf-10": (rrf_with(10, lambda a, b: a + b), search.BONUS_HEADING),
-    "rrf-1": (rrf_with(1, lambda a, b: a + b), search.BONUS_HEADING),
-    "max-60": (rrf_with(60, max), search.BONUS_HEADING),
-    "max-10": (rrf_with(10, max), search.BONUS_HEADING),
+    "rrf-60 (current)": (rrf_with(60, lambda a, b: a + b), 0.03),
+    "rrf-10": (rrf_with(10, lambda a, b: a + b), 0.03),
+    "rrf-1": (rrf_with(1, lambda a, b: a + b), 0.03),
+    "max-60": (rrf_with(60, max), 0.03),
+    "max-10": (rrf_with(10, max), 0.03),
     "rrf-60 no heading bonus": (rrf_with(60, lambda a, b: a + b), 0.0),
 }
 
 
 def main() -> None:
     paths.REGISTRY = floor.SWEEP / "registry.txt"
-    original, bonus = search.rrf, search.BONUS_HEADING
+    original, bonus = search.rrf, getattr(search, "BONUS_HEADING", 0.03)
     rows = []
     try:
         for name, (fuse, heading) in VARIANTS.items():

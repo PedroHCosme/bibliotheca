@@ -8,7 +8,15 @@ def test_rrf_sums_both_lists():
 
 
 def test_rrf_empty_list_does_not_break():
-    assert rrf([[], [7]]) == {7: 1 / 61}
+    assert rrf([[], [7]]) == {7: 1 / 2}
+
+
+def test_single_ranker_winner_beats_mediocre_agreement():
+    """The bug K_RRF=60 caused: a chunk ranked 1 by one ranker lost to a chunk ranked 5 by both."""
+    scores = rrf([[1, 90, 91, 92, 7], [2, 93, 94, 95, 7]])
+    assert scores[1] > scores[7], "rank 1 in one list must beat rank 5 in both"
+    assert scores[7] > scores[91], "agreement must still count for something"
+    # not scores[90]: at K=1 rank 2 alone (1/3) ties rank 5 in both (1/6 + 1/6) exactly.
 
 
 def test_portuguese_query_finds_right_file_in_top3(synthetic_bibliotheca):

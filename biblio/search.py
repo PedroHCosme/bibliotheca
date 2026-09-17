@@ -8,9 +8,10 @@ import numpy as np
 from biblio import db, embed
 from biblio.paths import known_bibliothecas, register, all_libs
 
-K_RRF = 60
+# Two rankers, not the paper's dozen: K=60 makes rank 5 in both beat rank 1 in either.
+# Measured on 60 gold questions (scripts/eval/results/fusion.md).
+K_RRF = 1
 MULTIPLE = 4
-BONUS_HEADING = 0.03
 
 _STOPWORDS = set("o a e de do da os as em para por com como ou no na um uma dos das que "
                  "qual quais entre sobre the of a an is are what how why".split())
@@ -82,14 +83,6 @@ def search(query: str, output=None, top: int = 5, doc: str | None = None,
         for key in list(scored):
             if key in frecency_scores:
                 scored[key] += min(frecency_scores[key] / db.BONUS_SCALE, db.MAX_BONUS)
-
-        q_tokens = _tokens(query)
-        if q_tokens:
-            for key, row in rows.items():
-                match = q_tokens & _tokens(row["section"] or "")
-                if match:
-                    scored[key] = scored.get(key, 0.0) + \
-                        BONUS_HEADING * len(match) / len(q_tokens)
 
         results: list[dict] = []
         result_keys: list[tuple[Path, int]] = []

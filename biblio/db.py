@@ -70,7 +70,7 @@ ACCESS_CAP = 20
 HALF_LIFE = 7
 SIMILARITY_THRESHOLD = 0.3
 PRUNE_THRESHOLD = 0.01
-MAX_BONUS = 0.03      # cap on the post-fusion frecency bonus (~2 RRF positions)
+MAX_BONUS = 0.15      # cap on the post-fusion frecency bonus (~2 RRF positions at K_RRF=1)
 BONUS_SCALE = 1.0     # observed scores >> this, so MAX_BONUS is the effective cap
 
 
