@@ -25,7 +25,12 @@ def _executable() -> str:
 PROTOCOL = """\
 ## Protocol
 
-**1. Always start with search.**
+**Question names an author, a work, or a filename? Glob first.** Try a
+glob/file-listing tool for that name before searching — it's faster and more
+precise than semantic search when you already know what you're looking for.
+Fall back to search if nothing matches.
+
+**1. Otherwise, start with search.**
 
 ```bash
 {command} search "<the question rewritten in domain terms>"{scope}
@@ -52,7 +57,9 @@ The range is the **entire section** that matched (delimited by heading, at most
 For `:19-36`, it's `offset=19` and `limit=18`.
 
 Read only the returned range — not neighboring files. If you still need context,
-read the 2nd result too. If nothing answers, search again with different terms.
+read the 2nd result too. If nothing answers, you may search once more with
+different terms — **two searches total, then stop searching and read
+something** (the index terms below, or a file directly).
 (`--context window` returns only the exact matched chunk, shorter.)
 
 **3. Found what you needed? Tell biblio.**
@@ -67,9 +74,15 @@ This improves future search ranking. Skip it if the result was not useful.
 
 **4. Empty search? Go to the index terms.**
 
+If you have shell access, try `grep` once:
+
 ```bash
 grep -A4 -i "<term>" <bibliotheca>/INDEX.md
 ```
+
+No shell, or the command errors out ("not found" or similar)? Read
+`<bibliotheca>/INDEX.md` directly with a file-read tool and scan for the term
+instead of retrying grep.
 
 The `**Terms:**` line in each block is the safety net for exact identifiers
 ("NBR 6118", "9.4.2", part name) that semantic search misses.
