@@ -1,6 +1,4 @@
 """Hybrid search. Returns path, lines, score, and heading. Never the body."""
-import re
-import unicodedata
 from pathlib import Path
 
 import numpy as np
@@ -12,14 +10,6 @@ from biblio.paths import known_bibliothecas, register, all_libs
 # Measured on 60 gold questions (scripts/eval/results/fusion.md).
 K_RRF = 1
 MULTIPLE = 4
-
-_STOPWORDS = set("o a e de do da os as em para por com como ou no na um uma dos das que "
-                 "qual quais entre sobre the of a an is are what how why".split())
-
-
-def _tokens(text: str) -> set[str]:
-    no_accent = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
-    return {t for t in re.findall(r"[a-z0-9]{3,}", no_accent.lower()) if t not in _STOPWORDS}
 
 
 def rrf(lists: list[list]) -> dict:

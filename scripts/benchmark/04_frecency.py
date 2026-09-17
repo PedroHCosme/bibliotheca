@@ -45,7 +45,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from biblio import db, embed
-from biblio.search import MULTIPLE, _tokens
+from biblio.db import _tokens
+from biblio.search import MULTIPLE
 
 BONUS_HEADING = 0.03  # removed from biblio.search; kept here so this benchmark still reproduces the old behaviour
 

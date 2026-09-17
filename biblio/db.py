@@ -4,7 +4,9 @@ ponytail: brute-force vector search in numpy. For the measured corpus size
 it's instant and avoids a native extension dependency.
 """
 import base64
+import re
 import sqlite3
+import unicodedata
 from pathlib import Path
 
 import numpy as np
@@ -12,6 +14,14 @@ import numpy as np
 from biblio.embed import DIM, MODEL
 
 DB_FILE = "biblio.db"
+
+_STOPWORDS = set("o a e de do da os as em para por com como ou no na um uma dos das que "
+                 "qual quais entre sobre the of a an is are what how why".split())
+
+
+def _tokens(text: str) -> set[str]:
+    no_accent = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+    return {t for t in re.findall(r"[a-z0-9]{3,}", no_accent.lower()) if t not in _STOPWORDS}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT);
@@ -209,7 +219,8 @@ def replace_document(con: sqlite3.Connection, doc: str, chunks: list[dict],
 
 def search_fts(con: sqlite3.Connection, query: str, k: int,
                doc: str | None = None) -> list[int]:
-    terms = " OR ".join(f'"{t}"' for t in query.split() if t)
+    words = _tokens(query) or set(query.split())  # fall back to raw query if cleaning empties it
+    terms = " OR ".join(f'"{t}"' for t in words if t)
     if not terms:
         return []
     sql = ("SELECT c.id FROM chunks_fts f JOIN chunks c ON c.id = f.rowid "
