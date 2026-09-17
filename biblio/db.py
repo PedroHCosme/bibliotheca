@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS chunks (
 );
 CREATE INDEX IF NOT EXISTS idx_chunks_doc ON chunks(doc);
 CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
-  text, section, content='chunks', content_rowid='id',
+  text, section, doc, file, content='chunks', content_rowid='id',
   tokenize="unicode61 remove_diacritics 2"
 );
 CREATE TABLE IF NOT EXISTS accesses (
@@ -49,6 +49,7 @@ def connect(bibliotheca: Path) -> sqlite3.Connection:
     con.execute("INSERT OR IGNORE INTO config VALUES('session_counter', '0')")
     con.commit()
     _check_model(con)
+    _check_fts(con)
     return con
 
 
@@ -64,6 +65,21 @@ def _check_model(con: sqlite3.Connection) -> None:
                 f"This bibliotheca was indexed with '{saved[0]}', and this biblio uses "
                 f"'{MODEL}'. The vectors are not comparable.\n"
                 f"Reindex with: biblio add <source> --force")
+
+
+FTS_VERSION = "2"   # bump when the FTS columns change
+
+
+def _check_fts(con: sqlite3.Connection) -> None:
+    """Rebuild the FTS index in place when its columns change. Vectors are untouched: no re-embedding."""
+    row = con.execute("SELECT value FROM config WHERE key='fts_version'").fetchone()
+    if row and row[0] == FTS_VERSION:
+        return
+    with con:
+        con.execute("DROP TABLE IF EXISTS chunks_fts")
+        con.executescript(SCHEMA)
+        con.execute("INSERT INTO chunks_fts(chunks_fts) VALUES('rebuild')")
+        con.execute("INSERT OR REPLACE INTO config VALUES('fts_version', ?)", (FTS_VERSION,))
 
 
 ACCESS_CAP = 20
@@ -175,9 +191,9 @@ def replace_document(con: sqlite3.Connection, doc: str, chunks: list[dict],
     """Deletes and reinserts the entire document. Reprocessing never duplicates."""
     with con:
         old = [tuple(r) for r in con.execute(
-            "SELECT id, text, section FROM chunks WHERE doc = ?", (doc,))]
-        con.executemany("INSERT INTO chunks_fts(chunks_fts, rowid, text, section) "
-                        "VALUES('delete', ?, ?, ?)", old)
+            "SELECT id, text, section, doc, file FROM chunks WHERE doc = ?", (doc,))]
+        con.executemany("INSERT INTO chunks_fts(chunks_fts, rowid, text, section, doc, file) "
+                        "VALUES('delete', ?, ?, ?, ?, ?)", old)
         con.execute("DELETE FROM chunks WHERE doc = ?", (doc,))
         for chunk, vector in zip(chunks, vectors):
             cursor = con.execute(
@@ -187,8 +203,8 @@ def replace_document(con: sqlite3.Connection, doc: str, chunks: list[dict],
                  chunk["line_end"], chunk["text"],
                  np.asarray(vector, dtype="float32").tobytes()),
             )
-            con.execute("INSERT INTO chunks_fts(rowid, text, section) VALUES(?,?,?)",
-                        (cursor.lastrowid, chunk["text"], chunk["section"]))
+            con.execute("INSERT INTO chunks_fts(rowid, text, section, doc, file) VALUES(?,?,?,?,?)",
+                        (cursor.lastrowid, chunk["text"], chunk["section"], doc, chunk["file"]))
 
 
 def search_fts(con: sqlite3.Connection, query: str, k: int,
